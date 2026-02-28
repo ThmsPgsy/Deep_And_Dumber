@@ -1,0 +1,15 @@
+1 - lancer install_env.sh
+2 - lancer lancuh_server.sh
+3 - si besoin, créer un profil sur huggingface-hub et demander une clé de connexion dans les paramètres de compte 
+    (normalement pas besoin puisque tu as le model dans le .zip)
+4 - lancer live ableton, drag&drop stable_max.amxd dans une piste de retour
+5 - checker si toute les dépendances sont résolues (surtout au niveau du grano)
+6 - lancer le séquenceur, envoyer de l'audio dans la piste de retour
+7 - choisir la seed aléatoire (0 = no seed, pas de répétabilité d'un exemple à l'autre) longueur de génération (seq length), le niveau de bruit ajouté au sample initial (noise_level), le nombre de steps de denopising (n_steps) et le guidage par prompt de génération (scale gen), cliquer Rec & Gen, wait, enjoy.
+8 - Repeat permet de relancer la génération au bout de chaque séquence de géneration (pas plus de 11s)
+9 - granulate permet de lire le sample dans le granulaire : 
+    div représente la taille du grain en terme de division du temps : 4 = noire, 8 = croche, 16 = double-croche, etc. 
+    speed représente la division de vitesse : 2 = 2 foisplus lent, 0.5 = 2 fois plus rapide
+10 - Dry/Wet permet de gérer le niveau d'audio généré à renvoyer dans le modèle pour la prochaine génération (feedback)
+11 - N_slices permet de diviser l'audio de référence en plusieurs segments audio consécutifs, de générer autant de segments audios et de les concaténer dans le même ordre. 
+     Coûteux et moche. Clairement une idée de merde.
