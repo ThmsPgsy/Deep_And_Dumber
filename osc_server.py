@@ -110,7 +110,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         print("new audio shape", in_audio.shape)
     
     amp_init = np.max(np.abs(in_audio)) 
-    in_audio = in_audio/amp_init
+    in_audio = in_audio/amp_init * 0.999
 
     if int(sr) != int(sample_rate):
         in_audio = librosa.resample(in_audio.T, orig_sr=sr, target_sr=sample_rate, mono = False).T  
@@ -128,7 +128,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         #     gen_audio = librosa.resample(gen_audio, orig_sr=sr, target_sr=sample_rate
         max_gen = np.max(np.abs(gen_audio)) 
         if max_gen  > 0 :
-            gen_audio = gen_audio/max_gen
+            gen_audio = gen_audio/max_gen * 0.999
         
         if sr != sample_rate:
             gen_audio = librosa.resample(gen_audio.T, orig_sr=sr, target_sr=sample_rate, mono = False).T
@@ -142,6 +142,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
  
     blocksize = in_audio.shape[0]
     in_audio = np.nan_to_num(in_audio).astype(np.float16)
+    max_index = np.argmax(in_audio)
     # in_audio = np.mean(in_audio, axis = 0)[np.newaxis, :]
     print("blocksize", blocksize)
     
@@ -191,7 +192,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
     # output = output.cpu()
     # print(output)
     # output = output/np.max(np.abs(output))
-    output = amp_init*output
+    output = amp_init*output * 0.999
     
     final_audio.append(output.numpy().T)
     torch.cuda.empty_cache()
