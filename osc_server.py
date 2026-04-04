@@ -9,12 +9,18 @@ import numpy as np
 import torch
 from einops import rearrange
 from stable_audio_tools.models.pretrained import get_pretrained_model
-from stable_audio_tools.inference.generation import generate_diffusion_cond
+from stable_audio_tools.inference.generation import generate_diffusion_cond, generate_diffusion_cond_inpaint
 from huggingface_hub import login
 
 path = os.getcwd()
 
 device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+torch.set_default_dtype(torch.float32)
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
+# torch.use_deterministic_algorithms(True)
+
+print("device : ", device)
 
 client = SimpleUDPClient("127.0.0.1", 9001)
 
@@ -33,7 +39,10 @@ if "model.pt" not in os.listdir(path + "/models"):
     torch.save(model, path + "/models/model.pt")
     
 else: 
-    model = torch.load(path + "/models" + "/model.pt", weights_only=False).to(device)
+    model = torch.load(path + "/models" + "/model.pt", 
+                       weights_only=False,
+                    #    torch_dtype=torch.float32,
+                       map_location=device).to(device)
 
     with open(path +  "/base_model_config.json") as json_file:
         model_config = json.load(json_file)
@@ -41,8 +50,11 @@ else:
 sample_rate = model_config["sample_rate"]
 sample_size = model_config["sample_size"]
 print("model sample rate", sample_rate)
+print(model.diffusion_objective)
+print(model.dist_shift)
+model.diffusion_objective = "rectified_flow"
 
-
+print(model.diffusion_objective)
 
 def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
     global model, path, sample_rate
@@ -65,7 +77,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
     print(f"arg7 : {n_slices}")
     print(path + '/take.wav')
     
-    in_audio, sr = librosa.load(path + "/take.wav", mono = False, sr = None)
+    in_audio, sr = librosa.load(path + "/take.wav", mono = True, sr = None)
     
     in_audio = in_audio.T
    
@@ -77,7 +89,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         in_audio = librosa.resample(in_audio.T, orig_sr=sr, target_sr=sample_rate).T  
     
     if cumulate > 0.1:
-        gen_audio, sr_gen = librosa.load(path + "/gen.wav", mono = False, sr = None)
+        gen_audio, sr_gen = librosa.load(path + "/gen.wav", mono = True, sr = None)
         gen_audio = gen_audio.T
         
             
@@ -88,9 +100,9 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
             gen_audio = librosa.resample(gen_audio.T, orig_sr=sr_gen, target_sr=sample_rate).T
              
         if gen_audio.shape[0] < in_audio.shape[0]:
-            gen_audio = np.pad(gen_audio, ((0, in_audio.shape[0]- gen_audio.shape[0]), (0,0)), constant_values=0)
+            gen_audio = np.pad(gen_audio, (0, in_audio.shape[0]- gen_audio.shape[0]), constant_values=0)
         elif gen_audio.shape[0] > in_audio.shape[0]:
-            gen_audio = gen_audio[:in_audio.shape[0], :]
+            gen_audio = gen_audio[:in_audio.shape[0]]
         
         in_audio = in_audio*(1-cumulate) + gen_audio*cumulate     
  
@@ -99,13 +111,13 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
     
     conditioning = [{
                     "prompt": prompt,
-                    "seconds_total": 12
+                    "seconds_total": 11
                     # "seconds_total": np.ceil(blocksize/sample_rate).astype(int)
                     }]
     
     neg_conditioning = [{
-                    "prompt": "Bad quality, silence, noisy",
-                    "seconds_total": 12
+                    "prompt": "Bad quality, silence, noise",
+                    "seconds_total": 11
                     # "seconds_total": np.ceil(blocksize/sample_rate).astype(int)
                     }]
      
@@ -116,9 +128,9 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         seed_gen = seed    
 
     print("audio shape : ", in_audio.shape)
-    in_audio = np.mean(in_audio, axis = -1)[:, np.newaxis]
+    # in_audio = np.mean(in_audio, axis = -1)
     in_audio = in_audio/np.max(np.abs(in_audio))
-    audio_seed = torch.from_numpy(in_audio.T).to(torch.float32)
+    audio_seed = torch.from_numpy(in_audio[np.newaxis, :]).to(torch.float32)
 
     output = generate_diffusion_cond(
                                     model,
@@ -129,19 +141,23 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
                                     sample_size=blocksize,
                                     init_audio = ([sample_rate, audio_seed]),
                                     init_noise_level = float(init_noise),
-                                    sampler_type= "pingpong",
+                                    sampler_type= "euler",
                                     seed = seed_gen,
                                     device=device
                                     )
     
-    
-    output = output[0].T.float().div(torch.max(torch.abs(output))).clamp(-1, 1).cpu().numpy()
+    # Rearrange audio batch to a single sequence
+    print(output.shape)
+    # output = rearrange(output, "b d n -> d (b n)")
+    output = output[0].div(torch.max(torch.abs(output))).clamp(-1, 1).cpu().numpy()
 
-    output  = librosa.resample(output[:blocksize].T, orig_sr=sample_rate, target_sr=sr).T
+    output  = librosa.resample(output[:, :blocksize], orig_sr=sample_rate, target_sr=sr).T
 
     print(output.shape)
+    print(output)
+    # output = np.nan_to_num(output)
     
-    sf.write(path + '/gen.wav', output, sr, format = "wav")
+    sf.write(path + '/gen.wav', output, sr, 'PCM_24')
     
     client.send_message("127.0.0.1:9001", ["bang"])
 
