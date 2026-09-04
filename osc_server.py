@@ -2,12 +2,15 @@ from pythonosc import dispatcher
 from pythonosc import osc_server
 from pythonosc.udp_client import SimpleUDPClient
 import os
+import sys
 import json
 import librosa
 import soundfile as sf
 import numpy as np
 import torch
 from einops import rearrange
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "stable-audio-tools"))
 from stable_audio_tools.models.pretrained import get_pretrained_model
 from stable_audio_tools.inference.generation import generate_diffusion_cond, generate_diffusion_cond_inpaint
 from huggingface_hub import login
@@ -16,9 +19,6 @@ path = os.getcwd()
 
 device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
 torch.set_default_dtype(torch.float32)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
-# torch.use_deterministic_algorithms(True)
 
 print("device : ", device)
 
@@ -82,7 +82,6 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
     in_audio = in_audio.T
    
     print("audio shape", in_audio.shape)
-    amp_init = np.max(np.abs(in_audio)) 
     in_audio = np.nan_to_num(in_audio)
 
     if int(sr) != int(sample_rate):
@@ -107,7 +106,6 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         in_audio = in_audio*(1-cumulate) + gen_audio*cumulate     
  
     blocksize = in_audio.shape[0]
-    max_index = np.argmax(in_audio)
     
     conditioning = [{
                     "prompt": prompt,
@@ -128,8 +126,8 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
         seed_gen = seed    
 
     print("audio shape : ", in_audio.shape)
-    # in_audio = np.mean(in_audio, axis = -1)
     in_audio = in_audio/np.max(np.abs(in_audio))
+    in_audio = np.nan_to_num(in_audio)
     audio_seed = torch.from_numpy(in_audio[np.newaxis, :]).to(torch.float32)
 
     output = generate_diffusion_cond(
@@ -147,15 +145,10 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7):
                                     )
     
     # Rearrange audio batch to a single sequence
-    print(output.shape)
-    # output = rearrange(output, "b d n -> d (b n)")
+    # print(output.numpy().shape)
     output = output[0].div(torch.max(torch.abs(output))).clamp(-1, 1).cpu().numpy()
 
     output  = librosa.resample(output[:, :blocksize], orig_sr=sample_rate, target_sr=sr).T
-
-    print(output.shape)
-    print(output)
-    # output = np.nan_to_num(output)
     
     sf.write(path + '/gen.wav', output, sr, 'PCM_24')
     
