@@ -60,10 +60,10 @@ print("device : ", device)
 # which is what happens here since flash_attn requires CUDA. mps_flash_attn.replace_sdpa()
 # monkey-patches that same F.scaled_dot_product_attention to route through its Metal
 # Flash Attention kernel instead, with automatic fallback to native SDPA if it errors.
-if device == "mps":
-    import mps_flash_attn
-    if mps_flash_attn.is_available():
-        mps_flash_attn.replace_sdpa()
+# if device == "mps":
+#     import mps_flash_attn
+#     if mps_flash_attn.is_available():
+#         mps_flash_attn.replace_sdpa()
 
 client = SimpleUDPClient("127.0.0.1", 9001)
 
@@ -210,7 +210,7 @@ def stable_gen(addr, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9):
     print(f"arg6 : {cumulate}")
     print(f"arg7 : {n_slices}")
     print(f"arg8 : {model_type}")
-    print(f"arg8 : {gen_type}")
+    print(f"arg9 : {gen_type}")
     
     in_audio, sr = librosa.load(path + "/take.wav", mono = True, sr = None)
     

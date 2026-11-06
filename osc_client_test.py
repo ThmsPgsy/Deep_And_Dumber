@@ -140,7 +140,7 @@ def main():
     p.add_argument("--cumulate", type=float, default=0.0,
                    help="arg6 mélange avec gen.wav précédent, >0.1 pour activer")
     p.add_argument("--slices", type=int, default=4, help="arg7 n_slices du masque d'inpaint")
-    p.add_argument("--model-type", type=int, default=0, choices=[0, 1, 2],
+    p.add_argument("--model-type", type=int, default=2, choices=[0, 1, 2],
                    help="arg8 0=open-small, 1=SAO3 sfx, 2=SAO3 music")
     p.add_argument("--gen-type", type=int, default=0, choices=[0, 1],
                    help="arg9 0=Instrument, 1=Music (préfixe du prompt)")
